@@ -1,0 +1,6 @@
+venv
+yolo_detection_txt_*
+.idea
+__pycache__/
+vott-json-export/
+vott_assets/
