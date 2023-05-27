@@ -9,6 +9,9 @@ from vott_reader import get_vott_info
 LABEL_FILE = open("class_labels.json")
 CLASS_LABELS = json.load(LABEL_FILE)
 
+YOLO_FOLDER = 'yolo_detection_txt_files_2'
+VOTT_ASSETS_FOLDER = 'vott_assets/'
+
 
 # Function to calculate IoU (Intersection over Union)
 def calculate_iou(boxA, boxB):
@@ -37,9 +40,9 @@ def read_yolo_detection(file_path):
     detections = []
 
     # Decide if you want to change vase label to bottle label
-    # Reason why because when the YOLO model doesn't detect bottle, it detects vase
+    # Reason why: When the YOLO model doesn't detect a bottle, it most often detects a vase
     # This could be solved by curated training
-    change_vase_label_to_bottle_label = True
+    change_vase_label_to_bottle_label = False
     if change_vase_label_to_bottle_label:
         CLASS_LABELS["75"] = 'bottle'
 
@@ -116,23 +119,25 @@ def read_vott_tagged(file_path):
 asset_txt_map = dict()
 
 info_map = get_vott_info()
-yolo_folder = 'yolo_detection_txt_files_2'
 
 iou_list = []
 
 yolo_detected_object_per_image_list = []
 vott_objects_per_image_list = []
 
+correct_count = 0
+incorrect_count = 0
+
 for asset_id in info_map:
     txt_file = match_vott_to_yolo(info_map[asset_id])
-    yolo_path = os.path.join(yolo_folder, txt_file)
+    yolo_path = os.path.join(YOLO_FOLDER, txt_file)
 
     if os.path.isfile(yolo_path):
         # print('file exists in folder')
         asset_txt_map[asset_id] = txt_file
     else:
         # print('file does not exist in folder!')
-        vott_file_path = 'vott_assets/' + asset_id + '-asset.json'
+        vott_file_path = VOTT_ASSETS_FOLDER + asset_id + '-asset.json'
 
         # Read VOTT tagged regions
         vott_tagged_regions = read_vott_tagged(vott_file_path)
@@ -146,7 +151,7 @@ try:
 
     for asset_id in asset_txt_map:
 
-        yolo_file_path = yolo_folder + '/' + asset_txt_map[asset_id]
+        yolo_file_path = YOLO_FOLDER + '/' + asset_txt_map[asset_id]
         vott_file_path = 'vott_assets/' + asset_id + '-asset.json'
 
         if not os.path.exists(vott_file_path):
@@ -180,12 +185,14 @@ try:
 
                         if str.lower(detection['label']) == str.lower(region['label']):
                             print('CORRECT DETECTION')
+                            correct_count += 1
                             iou = calculate_iou(detection, region)
 
                             # Print IoU for demonstration
                             print(f"IoU: {iou}")
                         elif detection['label'] != region['label']:
                             print('INCORRECT DETECTION, detected object = ', detection['label'])
+                            incorrect_count += 1
 
                             iou = calculate_iou(detection, region)
                             # Print IoU for demonstration
@@ -205,12 +212,15 @@ try:
                 for detection, region in zip(sorted_detections, sorted_regions):
                     if str.lower(detection['label']) == str.lower(region['label']):
                         print('CORRECT DETECTION')
+                        correct_count += 1
+
                         iou = calculate_iou(detection, region)
 
                         # Print IoU for demonstration
                         print(f"IoU: {iou}")
                     elif detection['label'] != region['label']:
                         print('INCORRECT DETECTION, detected object = ', detection['label'])
+                        incorrect_count += 1
 
                         iou = calculate_iou(detection, region)
                         # Print IoU for demonstration
@@ -247,12 +257,15 @@ try:
 
                     if str.lower(detection['label']) == str.lower(matching_regions[i]['label']):
                         print('CORRECT DETECTION')
+                        correct_count += 1
+
                         iou = calculate_iou(detection, matching_regions[i])
 
                         # Print IoU for demonstration
                         print(f"IoU: {iou}")
                     elif str.lower(detection['label']) == str.lower(matching_regions[i]['label']):
                         print('INCORRECT DETECTION, detected object = ', detection['label'])
+                        incorrect_count += 1
 
                         iou = calculate_iou(detection, matching_regions[i])
                         # Print IoU for demonstration
@@ -274,3 +287,10 @@ print('ACTUAL objects count for all images = ', sum(vott_objects_per_image_list)
 
 print('VOTT FILES COUNT = ', len(vott_objects_per_image_list))
 print('YOLO DIDNT DETECT ANY OBJECTS ON THIS AMOUNT OF IMAGE FILES = ', len(vott_objects_per_image_list) - len(yolo_detected_object_per_image_list))
+
+print('CORRECT DETECTIONS COUNT = ', correct_count)
+print('INCORRECT DETECTIONS COUNT = ', incorrect_count)
+
+if correct_count + incorrect_count > 0:
+    print(f'PERCENTAGE OF DETECTED OBJECTS CORRECT = {correct_count/(correct_count + incorrect_count) * 100}%')
+    print(f'PERCENTAGE OF ALL OBJECTS CORRECTLY DETECTED = {correct_count / sum(vott_objects_per_image_list) * 100}%')
