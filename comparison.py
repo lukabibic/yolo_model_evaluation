@@ -6,6 +6,9 @@ from shapely.geometry import box
 from unquote import match_vott_to_yolo
 from vott_reader import get_vott_info
 
+LABEL_FILE = open("class_labels.json")
+CLASS_LABELS = json.load(LABEL_FILE)
+
 
 # Function to calculate IoU (Intersection over Union)
 def calculate_iou(boxA, boxB):
@@ -32,14 +35,26 @@ def read_yolo_detection(file_path):
         lines = file.readlines()
 
     detections = []
+
+    # Decide if you want to change vase label to bottle label
+    # Reason why because when the YOLO model doesn't detect bottle, it detects vase
+    # This could be solved by curated training
+    change_vase_label_to_bottle_label = True
+    if change_vase_label_to_bottle_label:
+        CLASS_LABELS["75"] = 'bottle'
+
     for line in lines:
         line = line.strip().split(' ')
-        label = int(line[0])
-        if label == 39:
-            label = 'Bottle'
-        elif label == 75:
-            print('FOUND VASE, COULD CONSIDER AS BOTTLE')
-            label = 'Bottle'
+        label_num = line[0]
+        # if label == 39:
+        #     label = 'bottle'
+        # elif label == 75:
+        #     print('FOUND VASE, COULD CONSIDER AS BOTTLE')
+        #     label = 'Bottle'
+        # else:
+        #     label = CLASS_LABELS[label]
+        label = CLASS_LABELS[label_num]
+
         x, y, w, h = map(float, line[1:5])
         confidence = float(line[5])
 
