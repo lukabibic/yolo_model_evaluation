@@ -12,6 +12,11 @@ CLASS_LABELS = json.load(LABEL_FILE)
 YOLO_FOLDER = 'yolo_detection_txt_files_2'
 VOTT_ASSETS_FOLDER = 'vott_assets/'
 
+# Decide if you want to change vase label to bottle label
+# Reason why: When the YOLO model doesn't detect a bottle, it most often detects a vase
+# This could be solved by curated training
+CHANGE_VASE_LABEL_To_BOTTLE_LABEL = False
+
 
 # Function to calculate IoU (Intersection over Union)
 def calculate_iou(boxA, boxB):
@@ -39,11 +44,7 @@ def read_yolo_detection(file_path):
 
     detections = []
 
-    # Decide if you want to change vase label to bottle label
-    # Reason why: When the YOLO model doesn't detect a bottle, it most often detects a vase
-    # This could be solved by curated training
-    change_vase_label_to_bottle_label = False
-    if change_vase_label_to_bottle_label:
+    if CHANGE_VASE_LABEL_To_BOTTLE_LABEL:
         CLASS_LABELS["75"] = 'bottle'
 
     for line in lines:
@@ -61,20 +62,18 @@ def read_yolo_detection(file_path):
         x, y, w, h = map(float, line[1:5])
         confidence = float(line[5])
 
-        x_center = x * 1024
-        y_center = y * 1024
-        width_original = w * 1024
-        height_original = h * 1024
+        # x_center = x * 1024
+        # y_center = y * 1024
+        # width_original = w * 1024
+        # height_original = h * 1024
 
-        x_top_left = (x_center - width_original / 2)
-        y_top_left = (y_center - height_original / 2)
+        # x_top_left = (x_center - width_original / 2)
+        # y_top_left = (y_center - height_original / 2)
 
-
-        # multiply normalized coordinates by image size
         # detections.append({
         #     'label': label,
-        #     'x': x * 1024 / 32,
-        #     'y': y * 1024 / 32,
+        #     'x': x_top_left,
+        #     'y': y_top_left,
         #     'w': w * 1024,
         #     'h': h * 1024,
         #     'confidence': confidence
@@ -82,10 +81,10 @@ def read_yolo_detection(file_path):
 
         detections.append({
             'label': label,
-            'x': x_top_left,
-            'y': y_top_left,
-            'w': w * 1024,
-            'h': h * 1024,
+            'x': x,
+            'y': y,
+            'w': w,
+            'h': h,
             'confidence': confidence
         })
 
@@ -100,12 +99,26 @@ def read_vott_tagged(file_path):
     # regions = data['assets'][data['asset']['id']]['regions']
     regions = data['regions']
     tagged_regions = []
+
+    width = data['asset']['size']['width']
+    height = data['asset']['size']['height']
+
     for region in regions:
         label = region['tags'][0]
         x = region['boundingBox']['left']
         y = region['boundingBox']['top']
         w = region['boundingBox']['width']
         h = region['boundingBox']['height']
+
+        x_center = x + w / 2
+        y_center = y + h / 2
+
+        x = x_center/width
+        y = y_center/height
+
+        w = w / width
+        h = h / width
+
         tagged_regions.append({
             'label': label,
             'x': x,
@@ -115,6 +128,7 @@ def read_vott_tagged(file_path):
         })
 
     return tagged_regions
+
 
 asset_txt_map = dict()
 
@@ -292,5 +306,5 @@ print('CORRECT DETECTIONS COUNT = ', correct_count)
 print('INCORRECT DETECTIONS COUNT = ', incorrect_count)
 
 if correct_count + incorrect_count > 0:
-    print(f'PERCENTAGE OF DETECTED OBJECTS CORRECT = {correct_count/(correct_count + incorrect_count) * 100}%')
+    print(f'PERCENTAGE OF YOLO TAGGED OBJECTS CORRECTLY DETECTED = {correct_count/(correct_count + incorrect_count) * 100}%')
     print(f'PERCENTAGE OF ALL OBJECTS CORRECTLY DETECTED = {correct_count / sum(vott_objects_per_image_list) * 100}%')
