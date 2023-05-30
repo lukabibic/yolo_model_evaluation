@@ -9,8 +9,9 @@ from vott_reader import get_vott_info
 LABEL_FILE = open("class_labels.json")
 CLASS_LABELS = json.load(LABEL_FILE)
 
-YOLO_FOLDER = 'yolo_detection_txt_files_2'
+YOLO_FOLDER = 'yolo_detection_txt_files'
 VOTT_ASSETS_FOLDER = 'vott_assets/'
+VOTT_PROJECT_EXPORT_JSON_PATH = 'vott-json-export/BottleMarking-export.json'
 
 # Decide if you want to change vase label to bottle label
 # Reason why: When the YOLO model doesn't detect a bottle, it most often detects a vase
@@ -62,23 +63,6 @@ def read_yolo_detection(file_path):
         x, y, w, h = map(float, line[1:5])
         confidence = float(line[5])
 
-        # x_center = x * 1024
-        # y_center = y * 1024
-        # width_original = w * 1024
-        # height_original = h * 1024
-
-        # x_top_left = (x_center - width_original / 2)
-        # y_top_left = (y_center - height_original / 2)
-
-        # detections.append({
-        #     'label': label,
-        #     'x': x_top_left,
-        #     'y': y_top_left,
-        #     'w': w * 1024,
-        #     'h': h * 1024,
-        #     'confidence': confidence
-        # })
-
         detections.append({
             'label': label,
             'x': x,
@@ -96,7 +80,7 @@ def read_vott_tagged(file_path):
     with open(file_path, 'r') as file:
         data = json.load(file)
 
-    # regions = data['assets'][data['asset']['id']]['regions']
+
     regions = data['regions']
     tagged_regions = []
 
@@ -132,7 +116,7 @@ def read_vott_tagged(file_path):
 
 asset_txt_map = dict()
 
-info_map = get_vott_info()
+info_map = get_vott_info(VOTT_PROJECT_EXPORT_JSON_PATH)
 
 iou_list = []
 
@@ -145,12 +129,13 @@ incorrect_count = 0
 for asset_id in info_map:
     txt_file = match_vott_to_yolo(info_map[asset_id])
     yolo_path = os.path.join(YOLO_FOLDER, txt_file)
+    print('YOLO PATH = ', yolo_path)
 
     if os.path.isfile(yolo_path):
         # print('file exists in folder')
         asset_txt_map[asset_id] = txt_file
     else:
-        # print('file does not exist in folder!')
+        print('file does not exist in folder!')
         vott_file_path = VOTT_ASSETS_FOLDER + asset_id + '-asset.json'
 
         # Read VOTT tagged regions
@@ -170,6 +155,7 @@ try:
 
         if not os.path.exists(vott_file_path):
             # print('Asset file does not exist')
+            print(f'File name {vott_file_path} does not exist ')
             pass
 
         else :
@@ -193,78 +179,64 @@ try:
                 # Compare detections and tagged regions
                 for detection in yolo_detections:
                     for region in vott_tagged_regions:
-                        # Compare detection and region based on label and bounding box
-                        # print('Detection = ', detection)
-                        # print('Region = ', region)
 
                         if str.lower(detection['label']) == str.lower(region['label']):
                             print('CORRECT DETECTION')
                             correct_count += 1
                             iou = calculate_iou(detection, region)
-
-                            # Print IoU for demonstration
                             print(f"IoU: {iou}")
+
                         elif detection['label'] != region['label']:
                             print('INCORRECT DETECTION, detected object = ', detection['label'])
                             incorrect_count += 1
 
                             iou = calculate_iou(detection, region)
-                            # Print IoU for demonstration
                             print(f"IoU: {iou}")
 
                         iou_list.append(iou)
 
-                    # Perform comparison and evaluation calculations here
-                    # You can calculate metrics like IoU, precision, recall, etc.
             elif yolo_detections_size == vott_tagged_regions_size:
 
                 # Sort detections and regions based on the combined ('x', 'y') value
                 sorted_detections = sorted(yolo_detections, key=lambda d: (d['x'], d['y']))
                 sorted_regions = sorted(vott_tagged_regions, key=lambda r: (r['x'], r['y']))
 
-                # Now you can iterate over the sorted lists and compare the corresponding detections and regions
                 for detection, region in zip(sorted_detections, sorted_regions):
                     if str.lower(detection['label']) == str.lower(region['label']):
                         print('CORRECT DETECTION')
                         correct_count += 1
 
                         iou = calculate_iou(detection, region)
-
-                        # Print IoU for demonstration
                         print(f"IoU: {iou}")
+
                     elif detection['label'] != region['label']:
                         print('INCORRECT DETECTION, detected object = ', detection['label'])
                         incorrect_count += 1
 
                         iou = calculate_iou(detection, region)
-                        # Print IoU for demonstration
                         print(f"IoU: {iou}")
 
                     iou_list.append(iou)
 
             else:
-
-                # Initialize a list to store the closest matching region for each detection
+                # Find best matching region when sizes are different
                 matching_regions = []
 
-                # Iterate over each detection
                 for detection in yolo_detections:
-                    best_iou = 0  # Initialize the best IoU to 0
-                    best_region = None  # Initialize the best matching region as None
+                    best_iou = 0
+                    best_region = None
 
                     # Calculate IoU between the detection and each region
                     for region in vott_tagged_regions:
-                        iou = calculate_iou(detection, region)  # Replace with your IoU calculation function
+                        iou = calculate_iou(detection, region)
 
                         # Update the best IoU and best matching region if the current IoU is higher
                         if iou > best_iou:
                             best_iou = iou
                             best_region = region
 
-                    # Add the best matching region to the list
                     matching_regions.append(best_region)
 
-                # Now you can iterate over the detections and matching_regions lists and compare the corresponding objects
                 for i, detection in enumerate(yolo_detections):
                     print('DETECTION = ', detection)
                     print('MATCHING REGION = ', matching_regions[i])
@@ -274,15 +246,13 @@ try:
                         correct_count += 1
 
                         iou = calculate_iou(detection, matching_regions[i])
-
-                        # Print IoU for demonstration
                         print(f"IoU: {iou}")
+
                     elif str.lower(detection['label']) == str.lower(matching_regions[i]['label']):
                         print('INCORRECT DETECTION, detected object = ', detection['label'])
                         incorrect_count += 1
 
                         iou = calculate_iou(detection, matching_regions[i])
-                        # Print IoU for demonstration
                         print(f"IoU: {iou}")
 
                     iou_list.append(iou)

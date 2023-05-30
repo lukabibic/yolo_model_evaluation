@@ -1,12 +1,11 @@
 import json
 
 
-def get_vott_info():
+def get_vott_info(json_file_path):
 
     info_map = dict()
 
-    # Učitajte JSON datoteku
-    with open('vott-json-export/PlasticBottlesMarking-export.json') as f:
+    with open(json_file_path) as f:
         data = json.load(f)
 
     # Prolazak kroz sve slike
